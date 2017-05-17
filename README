@@ -1,0 +1,25 @@
+ApPHP SplitIt API Wrapper
+===============================
+
+Thank you for choosing ApPHP SplitIt API Wrapper
+
+INSTALLATION
+------------
+Please make sure the release file is unpacked under a web-accessible directory.
+You will see the following files and directories:
+
+    Splitit.php         API wrapper classdemo applications
+    CHANGELOG           describing changes in every ApPHP release
+    README              this file
+
+REQUIREMENTS
+------------
+The minimum requirement by this class is that your Web server supports PHP 5.4.0 or
+above. It has been tested with Apache HTTP server on Windows and Linux
+operating systems.
+
+The ApPHP Developer Team
+------------
+http://www.apphp.com/
+http://www.apphpframework.com
+https://github.com/apphp/splitit-api-wrapper
