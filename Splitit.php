@@ -1,14 +1,24 @@
 <?php
 
 /**
- * Super-simple, minimum abstraction SplitIt API BETA wrapper
+ * Super simple wrapper for SplitIt API BETA
+ * SplitIt - Online Payment Solution Offer Installment Plans to Customers
+ * Website: splitit.com
  * SplitIt API BETA: https://documenter.getpostman.com/view/795699/splitit-api-beta/2Qpqqj
- * This wrapper: https://github.com/apphp/splitit-api-wrapper
+ * 
  *
- * @author Samuel Akopyan<admin@apphp.com>
- * @version 1.0
- * @license	MIT
- * @lastChanges: 16.05.2017
+ * @author: Samuel Akopyan<admin@apphp.com>
+ * @version: 1.1
+ * @license: LGPL/MIT
+ * @copyright: ApPHP
+ * @link: https://github.com/apphp/splitit-api-wrapper	
+ * @lastChanges: 18.05.2017
+ *
+ *
+ * TODO:
+ * - documentation fo rall methods
+ * - finish _prepareParameters
+ * 
  *
  * PUBLIC:					PRIVATE:
  * ----------------			----------------	
@@ -16,9 +26,15 @@
  * login					_prepareStateForRequest
  * initiate					_setResponseState
  * create					_formatResponse
- * approve					_formatResponse
+ * approve					_determineSuccess
+ * startInstallments		_prepareParameters
+ * updatePlan
+ * cancel
+ * refund
+ * get
  * getSessionId
  * getPlanNumber
+ * getRefOrderNumber
  * getCheckoutUrl
  * getLastError				
  * getLastResponse			
@@ -30,12 +46,17 @@ namespace Apphp\SplitIt;
 
 class SplitIt
 {
-    const TIMEOUT = 30;
+    const TIMEOUT 				= 30;
+	const SANDBOX_ENDPOINT_URL 	= 'https://web-api-sandbox.splitit.com';
+	const ENDPOINT_URL 			= 'https://web-api.splitit.com';
 
-    private $_apiEndpoint 		= 'https://web-api-sandbox.splitit.com';
+    private $_apiEndpoint 		= '';
+	
+	private $_mode 				= 'sandbox';	/* real or sandbox */
 	private $_apiKey 			= null;
 	private $_sessionId 		= null;
 	private $_planNumber 		= null;
+	private $_refOrderNumber	= null;
 	private $_checkoutUrl 		= null;
 
     private $_requestSuccessful = false;
@@ -49,74 +70,74 @@ class SplitIt
 
     /**
      * Create a new instance
-     * @param array $config			Configuration file
+     * @param array $config			Configuration array
      * @param array $apiEndpoint	Endpoint for API
      * @return void
+     * @throws \Exception
      */
     public function __construct($config = array(), $apiEndpoint = null)
     {
 		$this->_username = ! empty($config['username']) ? $config['username'] : '';
 		$this->_password = ! empty($config['password']) ? $config['password'] : '';
 		$this->_apiKey = ! empty($config['api_key']) ? $config['api_key'] : '';
+		$this->_mode = ! empty($config['mode']) && $config['mode'] == 1 ? 'real' : 'sandbox';
 		
         if ($apiEndpoint === null) {
-            if ($this->_apiEndpoint === null) {
-                throw new \Exception('Empty SplitIt API Endpoint supplied.');
-            }
+			if ($this->_mode == 'real') {
+				$this->_apiEndpoint = self::ENDPOINT_URL;				
+			} else {
+				$this->_apiEndpoint = self::SANDBOX_ENDPOINT_URL;
+			}
         } else {
             $this->_apiEndpoint = $apiEndpoint;
         }
+		
+		if ($this->_apiEndpoint === null) {
+			throw new \Exception('Empty SplitIt API Endpoint supplied.');
+		}
     }
 
     /**
      * Login
      * The authentication that allows your server\application to connect with SplitIt
      * services by session returned from the Login service
-     * 
+     *
+     * @param array $params
      * @return array|false Assoc array of decoded result
      * @throws \Exception
      */
     public function login()
     {
-		$params = array(
-			'UserName'=>$this->_username,
-			'Password'=>$this->_password
-		);
-
-		return $this->_makeRequest('login', 'api/Login?format=json', $params);
+		return $this->_makeRequest(__FUNCTION__, 'api/Login?format=json', $this->_prepareParameters(__FUNCTION__));
     }
 	
     /**
      * Initiate
-     * The initiation of service that allows your server\application to start transaction with SplitIt
-     * 
+     * This method allows your server\application to start transaction with SplitIt
+     *
+     * @param array $params
      * @return array|false Assoc array of decoded result
      * @throws \Exception
      */
     public function initiate($params = array())
     {
-		$params['RequestHeader'] = array(
-			'SessionId' => $this->_sessionId,
-			'ApiKey'	=> $this->_apiKey
-		);
-		
-		return $this->_makeRequest('initiate', 'api/InstallmentPlan/Initiate?format=json', $params);
+		return $this->_makeRequest(__FUNCTION__, 'api/InstallmentPlan/Initiate?format=json', $this->_prepareParameters(__FUNCTION__, $params));
     }
 	
-	/////////////////////////
-
     /**
      * Create
+     * Thi method allows you to complete transaction with SplitIt
+     * 
+     * @return array|false Assoc array of decoded result
+     * @throws \Exception
      */
     public function create($params = array())
     {
-		$params['RequestHeader'] = array(
-			'SessionId' => $this->_sessionId,
-			'ApiKey'	=> $this->_apiKey
-		);
-		
-		return $this->_makeRequest('create', 'api/InstallmentPlan/Create?format=json', $params);
+		return $this->_makeRequest(__FUNCTION__, 'api/InstallmentPlan/Create?format=json', $this->_prepareParameters(__FUNCTION__, $params));
     }
+
+	/////////////////////////
+
 
     /**
      * Approve
@@ -148,6 +169,64 @@ class SplitIt
     }
 	
     /**
+     * updatePlan
+     * 
+     */
+    public function updatePlan($planNumber = null, $refOrderNumber = null, $params = array())
+    {
+		$params['RequestHeader'] = array(
+			'SessionId' 			=> $this->_sessionId,
+			'ApiKey'				=> $this->_apiKey,
+		);
+		$params['InstallmentPlanNumber'] = ! empty($planNumber) ? $planNumber : $this->_planNumber;
+		$params['PlanData'] = array(
+			'RefOrderNumber' 		=> ! empty($refOrderNumber) ? $refOrderNumber : $this->_refOrderNumber,
+		);
+		
+		# Assign params for update
+		if (! empty($params)) {
+			foreach ($params as $key => $val) {
+				$params['PlanData']['ExtendedParams'][$key] = $val;
+			}
+		}
+		
+		return $this->_makeRequest('approve', 'api/InstallmentPlan/Update?format=json', $params);
+    }
+
+    /**
+     * Get full installment plan data.
+     * $refundUnderCancelation	NoRefunds|OnlyIfAFullRefundIsPossible
+     */
+    public function cancel($planNumber = null, $refundUnderCancelation = 'NoRefunds')
+    {
+		$params['RequestHeader'] = array(
+			'SessionId' 			=> $this->_sessionId,
+			'ApiKey'				=> $this->_apiKey,
+		);
+		$params['InstallmentPlanNumber'] = ! empty($planNumber) ? $planNumber : $this->_planNumber;
+		$params['RefundUnderCancelation'] = $refundUnderCancelation;
+		
+		return $this->_makeRequest('approve', 'api/InstallmentPlan/Cancel?format=json', $params);
+    }
+
+    /**
+     * Get full installment plan data.
+     * $refundStrategy		FutureInstallmentsFirst|FutureInstallmentsLast|FutureInstallmentsNotAllowed
+     */
+    public function refund($planNumber = null, $amount = 0, $refundStrategy = 'NoRefunds')
+    {
+		$params['RequestHeader'] = array(
+			'SessionId' 			=> $this->_sessionId,
+			'ApiKey'				=> $this->_apiKey,
+		);
+		$params['InstallmentPlanNumber'] = ! empty($planNumber) ? $planNumber : $this->_planNumber;
+		$params['Amount'] = array('Value' => $amount);
+		$params['RefundStrategy'] = $refundStrategy;
+		
+		return $this->_makeRequest('approve', 'api/InstallmentPlan/Refund?format=json', $params);
+    }
+	
+    /**
      * Get full installment plan data.
      */
     public function get($planNumber = null)
@@ -162,7 +241,6 @@ class SplitIt
 		return $this->_makeRequest('approve', 'api/InstallmentPlan/Get?format=json', $params);
     }
 
-	
 	/**
 	 * Returns session ID
 	 */
@@ -179,6 +257,14 @@ class SplitIt
         return $this->_planNumber ? $this->_planNumber : null;
     }
 	
+	/**
+	 * Returns getRefOrderNumber
+	 */
+    public function getRefOrderNumber()
+    {
+        return $this->_refOrderNumber ? $this->_refOrderNumber : null;
+    }
+
 	/**
 	 * Returns installment plan number
 	 */
@@ -255,10 +341,6 @@ class SplitIt
 		$response            	= $this->_setResponseState($response, $responseContent, $postFields, $ch);
 		$formattedResponse		= $this->_formatResponse($response);
 		
-		//dbug($response);
-		//dbug($formattedResponse,1);
-		
-
 		$this->_determineSuccess($response, $formattedResponse, $timeout);
 		
 		return $formattedResponse;
@@ -330,6 +412,7 @@ class SplitIt
 			$this->_sessionId = ! empty($response['body']['SessionId']) ? $response['body']['SessionId'] : null;			
 		} elseif ($this->_lastRequest['method'] == 'initiate') {
 			$this->_checkoutUrl = ! empty($response['body']['CheckoutUrl']) ? $response['body']['CheckoutUrl'] : null;			
+			$this->_refOrderNumber = ! empty($response['body']['InstallmentPlan']['RefOrderNumber']) ? $response['body']['InstallmentPlan']['RefOrderNumber'] : null;
 		} elseif ($this->_lastRequest['method'] == 'create') {
 			$this->_planNumber = ! empty($response['body']['InstallmentPlan']['InstallmentPlanNumber']) ? $response['body']['InstallmentPlan']['InstallmentPlanNumber'] : null;
 		}		
@@ -390,4 +473,36 @@ class SplitIt
 
         return 418;
     }
+	
+    /**
+     * @return 
+     */
+    private function _prepareParameters($method = '', $params = array())
+    {
+		switch ($method) {
+			case 'login':
+				$params = array(
+					'UserName'=>$this->_username,
+					'Password'=>$this->_password
+				);
+				break;
+			
+			case 'initiate':
+				$params['RequestHeader'] = array(
+					'SessionId' => $this->_sessionId,
+					'ApiKey'	=> $this->_apiKey
+				);
+				break;
+			
+			case 'initiate':
+				$params['RequestHeader'] = array(
+					'SessionId' => $this->_sessionId,
+					'ApiKey'	=> $this->_apiKey
+				);
+				break;
+		}
+		
+		return $params;
+	}
+	
 }

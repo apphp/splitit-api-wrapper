@@ -11,7 +11,9 @@ Please make sure the release file is unpacked under a web-accessible directory.
 You will see the following files and directories:
 
     Splitit.php         API wrapper classdemo applications
+	example.php			file with code example
     CHANGELOG           describing changes in every ApPHP release
+	LICENSE				license file
     README              this file
 
 REQUIREMENTS
@@ -25,3 +27,23 @@ The ApPHP Developer Team
 http://www.apphp.com/
 http://www.apphpframework.com
 https://github.com/apphp/splitit-api-wrapper
+
+
+
+USAGE (example):
+------------
+<?php
+
+use \Apphp\SplitIt\SplitIt;
+
+require_lib('splitit/Splitit');
+
+# Create new object
+$config = array(
+	'username' 	=> '<USERNAME>',
+	'password' 	=> '<PASSWORD>',
+	'api_key'	=> '<API-KEY>',
+);		
+$splitit = new SplitIt($config);
+
+?>
