@@ -132,7 +132,7 @@
 	// UPDATE PLAN
 	// ---------------------------
 	$refOrderNumber = $splitit->getRefOrderNumber();
-	$params = array('Comments' => 'This is VIP Customer');
+	$params = array('PlanData' => array('RefOrderNumber' => $refOrderNumber), array('Comments' => 'This is VIP Customer'))
 
 	$result = $splitit->updatePlan($planNumber, $refOrderNumber, $params);
 	if ( $error = $splitit->getLastError() ) {
