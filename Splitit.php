@@ -8,17 +8,12 @@
  * 
  *
  * @author: Samuel Akopyan<admin@apphp.com>
- * @version: 1.2
+ * @version: 1.3
  * @license: LGPL/MIT
  * @copyright: ApPHP
  * @link: https://github.com/apphp/splitit-api-wrapper	
- * @lastChanges: 30.01.2018
+ * @lastChanges: 04.02.2018
  *
- *
- * TODO:
- * - documentation for all methods
- * - finish _prepareParameters
- * 
  *
  * PUBLIC:					PRIVATE:
  * ----------------			----------------	
@@ -31,6 +26,7 @@
  * updatePlan
  * cancel
  * refund
+ * getVersion
  * get
  * getSessionId
  * getPlanNumber
@@ -46,14 +42,15 @@ namespace Apphp\SplitIt;
 
 class SplitIt
 {
-	const TIMEOUT 				= 30;
+	const TIMEOUT				= 30;
 	const SANDBOX_ENDPOINT_URL 	= 'https://web-api-sandbox.splitit.com';
-	const ENDPOINT_URL 			= 'https://web-api.splitit.com';
+	const ENDPOINT_URL			= 'https://web-api.splitit.com';
+	const VERSION				= '1.3';
 
 	private $_apiEndpoint 		= '';
 	
-	private $_mode 				= 'sandbox';	/* sandbox or live */
-	private $_apiKey 			= null;
+	private $_mode				= 'sandbox';	/* sandbox or live */
+	private $_apiKey			= null;
 	private $_sessionId 		= null;
 	private $_planNumber 		= null;
 	private $_refOrderNumber	= null;
@@ -64,8 +61,8 @@ class SplitIt
 	private $_lastResponse		= array();
 	private $_lastRequest		= array();
 	
-	private $_username		 	= '';
-	private $_password		 	= '';
+	private $_username			= '';
+	private $_password			= '';
 	
 
 	/**
@@ -82,17 +79,17 @@ class SplitIt
 		$this->_apiKey = ! empty($config['api_key']) ? $config['api_key'] : '';
 		$this->_mode = ! empty($config['mode']) && $config['mode'] == 'live' ? 'live' : 'sandbox';
 		
-		if ($apiEndpoint === null) {
-			if ($this->_mode == 'live') {
+		if($apiEndpoint === null){
+			if($this->_mode == 'live'){
 				$this->_apiEndpoint = self::ENDPOINT_URL;
-			} else {
+			}else{
 				$this->_apiEndpoint = self::SANDBOX_ENDPOINT_URL;
 			}
-		} else {
+		}else{
 			$this->_apiEndpoint = $apiEndpoint;
 		}
 		
-		if ($this->_apiEndpoint === null) {
+		if($this->_apiEndpoint === null){
 			throw new \Exception('Empty SplitIt API Endpoint supplied.');
 		}
 	}
@@ -241,6 +238,17 @@ class SplitIt
 	}
 	
 	/**
+	 * GetVersion
+	 * This method returns SplitIt class version
+	 * 
+	 * @return string
+	 */
+	public function getVersion()
+	{
+		return self::VERSION;
+	}
+
+	/**
 	 * Get
 	 * This method allows to get full installment plan data
 	 * 
@@ -258,8 +266,6 @@ class SplitIt
 		return $this->_makeRequest(__FUNCTION__, 'api/InstallmentPlan/Get?format=json', $params);
 	}
 	
-	/////////////////////////////
-
 	/**
 	 * Returns session ID
 	 */
@@ -331,7 +337,7 @@ class SplitIt
 	 */
 	private function _makeRequest($method, $requestUrl, $postFields = array(), $timeout = self::TIMEOUT)
 	{
-		if (!function_exists('curl_init') || !function_exists('curl_setopt')) {
+		if(!function_exists('curl_init') || !function_exists('curl_setopt')){
 			throw new \Exception("cURL support is required, but can't be found.");
 		}
 		
@@ -402,12 +408,10 @@ class SplitIt
 	{
 		$response['headers'] = curl_getinfo($ch);
 
-		if ($responseContent === false) {
+		if($responseContent === false){
 			$this->_lastError = curl_error($ch);
-		} else {
-			
-			$response['body'] = $responseContent;
-			
+		}else{			
+			$response['body'] = $responseContent;			
 			$this->_lastRequest['params'] = $postFields;
 		}
 
@@ -421,23 +425,23 @@ class SplitIt
 	 */
 	private function _formatResponse($response)
 	{
-		if (!empty($response['body'])) {
+		if(!empty($response['body'])){
 			$response['body'] = json_decode($response['body'], true);
 		}
 		
 		$this->_lastResponse = $response;
 
-		if ($this->_lastRequest['method'] == 'login') {
+		if($this->_lastRequest['method'] == 'login'){
 			$this->_sessionId = ! empty($response['body']['SessionId']) ? $response['body']['SessionId'] : null;			
-		} elseif ($this->_lastRequest['method'] == 'initiate') {
+		}elseif($this->_lastRequest['method'] == 'initiate'){
 			$this->_checkoutUrl = ! empty($response['body']['CheckoutUrl']) ? $response['body']['CheckoutUrl'] : null;			
 			$this->_refOrderNumber = ! empty($response['body']['InstallmentPlan']['RefOrderNumber']) ? $response['body']['InstallmentPlan']['RefOrderNumber'] : null;
 			$this->_planNumber = ! empty($response['body']['InstallmentPlan']['InstallmentPlanNumber']) ? $response['body']['InstallmentPlan']['InstallmentPlanNumber'] : null;
-		} elseif ($this->_lastRequest['method'] == 'create') {
+		}elseif($this->_lastRequest['method'] == 'create'){
 			$this->_planNumber = ! empty($response['body']['InstallmentPlan']['InstallmentPlanNumber']) ? $response['body']['InstallmentPlan']['InstallmentPlanNumber'] : null;
 		}
 		
-		if (isset($response['body']['ResponseHeader']['Succeeded']) && $response['body']['ResponseHeader']['Succeeded'] == false) {
+		if(isset($response['body']['ResponseHeader']['Succeeded']) && $response['body']['ResponseHeader']['Succeeded'] == false){
 			$this->_lastError = $response['body']['ResponseHeader']['Errors'];
 		}
 		
@@ -448,24 +452,24 @@ class SplitIt
 	 * Check if the response was successful or a failure. If it failed, store the error.
 	 * @param array $response The response from the curl request
 	 * @param array|false $formattedResponse The response body payload from the curl request
-	 * @param int $timeout 	The timeout supplied to the curl request.
-	 * @return bool			If the request was successful
+	 * @param int $timeout	The timeout supplied to the curl request.
+	 * @return bool		If the request was successful
 	 */
 	private function _determineSuccess($response, $formattedResponse, $timeout)
 	{
 		$status = $this->_findHTTPStatus($response, $formattedResponse);
 	
-		if ($status >= 200 && $status <= 299) {
+		if($status >= 200 && $status <= 299){
 			$this->_requestSuccessful = true;
 			return true;
 		}
 
-		if (isset($formattedResponse['detail'])) {
+		if(isset($formattedResponse['detail'])){
 			$this->_lastError = sprintf('%d: %s', $formattedResponse['status'], $formattedResponse['detail']);
 			return false;
 		}
 
-		if( $timeout > 0 && $response['headers'] && $response['headers']['total_time'] >= $timeout ) {
+		if( $timeout > 0 && $response['headers'] && $response['headers']['total_time'] >= $timeout ){
 			$this->_lastError = sprintf('Request timed out after %f seconds.', $response['headers']['total_time'] );
 			return false;
 		}
@@ -483,25 +487,28 @@ class SplitIt
 	 */
 	private function _findHTTPStatus($response, $formattedResponse)
 	{
-		if (!empty($response['headers']) && isset($response['headers']['http_code'])) {
+		if(!empty($response['headers']) && isset($response['headers']['http_code'])){
 			return (int)$response['headers']['http_code'];
 		}
 
-		if (!empty($response['body']) && isset($formattedResponse['status'])) {
+		if(!empty($response['body']) && isset($formattedResponse['status'])){
 			return (int)$formattedResponse['status'];
 		}
-
+		
 		return 418;
 	}
 	
 	/**
-	 * @return 
+	 * Prepares parameters for API call
+	 * @param string $method
+	 * @param array $params
+	 * @return array
 	 */
 	private function _prepareParameters($method = '', $params = array())
 	{
 		$result = array();
 		
-		switch ($method) {
+		switch($method){
 			case 'login':
 				$result = array(
 					'UserName'	=> $this->_username,
@@ -529,7 +536,7 @@ class SplitIt
 				break;			
 		}
 		
-		if ( ! empty($params) ) {
+		if(! empty($params)){
 			$result = array_merge($result, $params);
 		}
 		
